@@ -1,0 +1,5 @@
+.env
+.vscode
+go.sum
+go.mod
+console_error.log

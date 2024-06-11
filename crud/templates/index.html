@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>DataGrid</title>
+        <link rel="stylesheet" type="text/css" href="/static/style.css">
+    </head>
+    <body>
+        <div class="header">
+            <h1>DataGrid for {{.TableName}}</h1>
+            <div id="searchContainer">
+                <input type="text" id="searchBox" placeholder="Search...">
+                <button id="clearSearchInputButton">X</button>
+            </div>
+            <button onclick="showAddForm()">Add Record</button>
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    {{range .Columns}}
+                        <th data-name="{{.Name}}" data-order="asc" onclick="sortRecords('{{.Name}}')">{{.Comment}}</th>
+                    {{end}}
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="dataGrid"></tbody>
+        </table>
+        <div class="pagination">
+            <button onclick="prevPage()">Previous</button>
+            <span id="currentPage">1</span>
+            <span id="totalPages">/ 1</span>
+            <button onclick="nextPage()">Next</button>
+        </div>
+    
+        
+        <div id="modal" class="modal">
+            <div class="modal-content">
+                <span class="close-button">×</span>
+                <form id="dataForm" onsubmit="submitForm(event)">
+                    {{range .Columns}}
+                        <label>{{.Comment}}</label>
+                        <input type="text" name="{{.Name}}" id="{{.Name}}" value="">
+                        <br>
+                    {{end}}
+                    <div id="formButtons">
+                        <button type="submit">Save</button>
+                        <button type="button" onclick="hideForm()">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>        
+
+    <script src="/static/script.js"></script>    
+</body>
+</html>
