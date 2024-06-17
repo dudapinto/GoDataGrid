@@ -3,15 +3,18 @@
 <head>
     <title>DataGrid</title>
     <link rel="stylesheet" type="text/css" href="/static/advProtheus.style.css">
+    <script src="https://kit.fontawesome.com/d43b46996f.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 </head>
 <body>
     <div class="header">
         <h1 id="tableTitle">DataGrid for {{.TableName}}</h1>
+        <div id="addIconContainer">
+            <i id="addRecordIcon" class="fas fa-plus" onclick="showAddForm()"></i>
+        </div>
         <div id="searchContainer">
             <input type="text" id="searchBox" placeholder="Search...">
             <button id="clearSearchInputButton">X</button>
         </div>
-        <button onclick="showAddForm()">Add Record</button>
     </div>
     
     <div id="tableContainer">
@@ -63,7 +66,6 @@
             <button onclick="hideDeleteModal()">Cancel</button>
         </div>
     </div>
-    <script src="https://kit.fontawesome.com/d43b46996f.js" crossorigin="anonymous" referrerpolicy="no-referrer" /></script>
     <script src="/static/script.js"></script>    
 </body>
 </html>

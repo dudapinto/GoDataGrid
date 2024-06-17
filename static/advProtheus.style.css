@@ -217,3 +217,25 @@ td {
 #dataTable th i {
     margin-left: 5px; /* Adjust as needed */
 }
+
+#addRecordIcon {
+    font-size: 24px;
+    cursor: pointer;
+    color: #ffffff;
+    background-color: #0077cc;
+    border-radius: 50%;
+    padding: 10px;
+    margin-left: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#addRecordIcon:hover {
+    background-color: #005ea6;
+}
+
+#searchContainer {
+    position: relative;
+    margin-left: auto;
+}
