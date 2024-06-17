@@ -4,9 +4,9 @@ import "datagrid/crud"
 
 func ProductsSetup(handler *crud.CRUDHandler) error {
 	handler.SetTableName("products")
-	query := "SELECT product_id, name, description, price FROM products"
+	query := "SELECT id, name, description, price FROM products"
 	columnLabels := map[string]string{
-		"product_id":  "Product ID",
+		"id":          "Product ID",
 		"name":        "Name",
 		"description": "Description",
 		"price":       "Price",

@@ -2,9 +2,12 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
+	"runtime"
 
 	"datagrid/server"
 
@@ -29,6 +32,18 @@ func main() {
 
 	// Set up routes and start the server
 	server.SetupRoutes(db)
+
+	serverType := runtime.GOOS
+	clearCmd := "clear"
+	if serverType == "windows" {
+		clearCmd = "cls"
+	}
+
+	cmd := exec.Command(clearCmd)
+	cmd.Stdout = os.Stdout
+	cmd.Run()
+
+	fmt.Println("This is a", serverType, "server.")
 
 	// Start HTTP server
 	log.Println("Starting server on :8080...")

@@ -4,6 +4,10 @@ let currentSortColumn = null;
 let currentSortOrder = 'asc';
 
 function loadRecords(query) {
+    // Remove the existing table to avoid data flickering (old data appearing prior to the new data)
+    const tableContainer = document.getElementById('tableContainer');
+    tableContainer.innerHTML = '';
+
     let url = '/api/records?page=' + (currentPage - 1);
     if (query) {
         url += '&search=' + encodeURIComponent(query);
@@ -12,49 +16,122 @@ function loadRecords(query) {
         url += '&sort=' + encodeURIComponent(currentSortColumn) + '&order=' + encodeURIComponent(currentSortOrder);
     }
 
-    console.log('Fetching records from URL:', url);  // Log URL for debugging
+    console.log('Fetching records from URL:', url);
     fetch(url)
         .then(response => response.json())
         .then(data => {
-            console.log('Fetched Data:', data);  // Log fetched data
+            console.log('Fetched Data:', data);
 
-            if (data.hasOwnProperty('records')) {
-                const tbody = document.getElementById('dataGrid');
-                tbody.innerHTML = '';  // Clear existing rows
+            if (data.columns && data.records) {
+                // Create new table
+                const table = document.createElement('table');
+                table.id = 'dataTable';
 
+                // Create thead and theadRow
+                const thead = document.createElement('thead');
+                const theadRow = document.createElement('tr');
+
+                // Create header cells for each column
+                data.columns.forEach(column => {
+                    if (column !== 'id') { // Assuming 'id' is a hidden column
+                        const th = document.createElement('th');
+                        th.setAttribute('data-name', column);
+                        th.setAttribute('data-order', 'asc');
+                        th.textContent = capitalizeFirstLetter(column.replace('_', ' ')); // Customize header text as needed
+                        th.onclick = () => sortRecords(column);
+
+                        // Create icon element
+                        const icon = document.createElement('i');
+                        icon.className = 'fas fa-sort'; // Assuming you are using Font Awesome for icons
+                        icon.style.marginLeft = '5px'; // Adjust margin as needed
+                        th.appendChild(icon);
+
+                        // Update icon based on sorting order
+                        if (column === currentSortColumn) {
+                            if (currentSortOrder === 'asc') {
+                                icon.className = 'fas fa-sort-up'; // Icon for ascending sort
+                            } else {
+                                icon.className = 'fas fa-sort-down'; // Icon for descending sort
+                            }
+                        }
+
+                        theadRow.appendChild(th);
+                    }
+                });
+
+                // Create header cell for Actions
+                const thActions = document.createElement('th');
+                thActions.textContent = 'Actions';
+                theadRow.appendChild(thActions);
+
+                // Append theadRow to thead
+                thead.appendChild(theadRow);
+
+                // Append thead to table
+                table.appendChild(thead);
+
+                // Create and populate tbody
+                const tbody = document.createElement('tbody');
+                tbody.id = 'dataGrid';
                 data.records.forEach(record => {
                     const row = document.createElement('tr');
-                    document.querySelectorAll('th[data-name]').forEach(th => {
-                        const propertyName = th.getAttribute('data-name');
-                        const cell = document.createElement('td');
-                        cell.textContent = record[propertyName] || '';
-                        row.appendChild(cell);
+                    row.setAttribute('data-id', record['id']); // Store the ID in a data attribute
+
+                    // Create cells for each column
+                    data.columns.forEach(column => {
+                        if (column !== 'id') {
+                            const cell = document.createElement('td');
+                            cell.textContent = record[column] || '';
+                            row.appendChild(cell);
+                        }
                     });
 
+                    // Create actions cell with icons for Edit and Delete
                     const actionsCell = document.createElement('td');
-                    const editButton = document.createElement('button');
-                    editButton.textContent = 'Edit';
-                    editButton.onclick = () => showEditForm(record['id']);
-                    const deleteButton = document.createElement('button');
-                    deleteButton.textContent = 'Delete';
-                    deleteButton.onclick = () => deleteRecord(record['id']);
-                    actionsCell.appendChild(editButton);
-                    actionsCell.appendChild(deleteButton);
+
+                    const editIcon = document.createElement('i');
+                    editIcon.className = 'fas fa-edit'; 
+                    editIcon.title = 'Edit'; // Tooltip text for edit action
+                    editIcon.onclick = () => showEditForm(record['id']);
+                    
+                    const deleteIcon = document.createElement('i');
+                    deleteIcon.className = 'fas fa-trash-alt'; 
+                    deleteIcon.title = 'Delete'; // Tooltip text for delete action
+                    deleteIcon.onclick = () => deleteRecordPrompt(record['id']);
+                    
+                    actionsCell.appendChild(editIcon);
+                    actionsCell.appendChild(deleteIcon);
                     row.appendChild(actionsCell);
+
+                    // Append row to tbody
                     tbody.appendChild(row);
                 });
 
+                // Replace old table with new table
+                table.appendChild(tbody);
+
+                // Append table to the container
+                if (tableContainer.firstChild) {
+                    tableContainer.replaceChild(table, tableContainer.firstChild);
+                } else {
+                    tableContainer.appendChild(table);
+                }
+                table.style.opacity = '1';
+
+                // Update pagination
                 currentPage = data.currentPage + 1;
                 totalPages = data.totalPages;
                 document.getElementById('currentPage').innerText = currentPage;
                 document.getElementById('totalPages').innerText = '/ ' + totalPages;
+
             } else {
-                console.error('Data records property is undefined');
+                console.error('Data columns or records property is undefined');
             }
         }).catch(error => {
             console.error('Error fetching records:', error);
         });
 }
+
 
 function searchRecords() {
     const query = document.getElementById('searchBox').value;
@@ -62,7 +139,6 @@ function searchRecords() {
     loadRecords(query);
 }
 
-// Add event listener to the search box
 document.getElementById('searchBox').addEventListener('keyup', function(event) {
     if (event.key === 'Enter') {
         searchRecords();
@@ -74,7 +150,6 @@ function clearSearchBox() {
     loadRecords();
 }
 
-// Add event listener to the search button
 document.getElementById('clearSearchInputButton').addEventListener('click', clearSearchBox);
 
 function prevPage() {
@@ -99,8 +174,21 @@ function sortRecords(column) {
         currentSortOrder = 'asc';
     }
     currentPage = 1; // Reset to the first page on sort
+
+    // Update headers to indicate sorting
+    const thElements = document.querySelectorAll('#dataTable th');
+    thElements.forEach(th => {
+        const columnName = th.getAttribute('data-name');
+        if (columnName === column) {
+            th.setAttribute('data-order', currentSortOrder);
+        } else {
+            th.setAttribute('data-order', 'asc');
+        }
+    });
+
     loadRecords();
 }
+
 
 function showAddForm() {
     currentId = null;
@@ -109,41 +197,46 @@ function showAddForm() {
 }
 
 function showEditForm(id) {
-    fetch('/api/records?id=' + id)
+    fetch(`/api/records?id=${id}`)
         .then(response => response.json())
         .then(data => {
-            const record = data.records[0];  // Access the first record
-            console.log("Record ==> ", record);
-            var modal = document.getElementById('modal');  // Get the modal
-            modal.querySelectorAll('input[type="text"]').forEach(input => {      
-                const propertyName = input.getAttribute('name'); 
-                console.log("propertyName ==> " + propertyName);
-                input.value = record[propertyName] || '';
-                if (propertyName === "id" ) {
-                    console.log("ReadOnly == true");
-                    input.setAttribute('readonly', true);  // Make the id field read-only
-                    input.setAttribute('disabled', true);  // Make the id field unclickable
-                } else {
-                    input.removeAttribute('readonly');  // Ensure other fields are not read-only
-                    input.removeAttribute('disabled');  // Ensure other fields are not disabled
+            const record = data.records[0];
+            const modal = document.getElementById('modal');
+            const form = document.getElementById('dataForm');
+
+            // Populate form fields
+            form.reset();
+            for (const key in record) {
+                if (record.hasOwnProperty(key)) {
+                    const input = form.elements[key];
+                    if (input) {
+                        input.value = record[key];
+                        if (key === 'id') {
+                            input.setAttribute('readonly', true);
+                            input.setAttribute('disabled', true);
+                        } else {
+                            input.removeAttribute('readonly');
+                            input.removeAttribute('disabled');
+                        }
+                    }
                 }
-            }); 
+            }
+
             currentId = id;
-            document.getElementById('modal').style.display = 'block';
-            
-            var inputId = document.getElementById('id');
-            console.log(inputId); 
-
-
-        }).catch(error => {
+            modal.style.display = 'block';
+        })
+        .catch(error => {
             console.error('Error fetching record:', error);
         });
 }
 
-
 function hideForm() {
     document.getElementById('modal').style.display = 'none';
 }
+
+
+// Adjust the styling and functionality for the form buttons
+document.getElementById('dataForm').addEventListener('submit', submitForm);
 
 function submitForm(event) {
     event.preventDefault();
@@ -155,7 +248,7 @@ function submitForm(event) {
     });
 
     const method = currentId ? 'PUT' : 'POST';
-    const url = currentId ? '/api/records?id=' + currentId : '/api/records';
+    const url = currentId ? `/api/records?id=${currentId}` : '/api/records';
 
     fetch(url, {
         method: method,
@@ -164,36 +257,85 @@ function submitForm(event) {
         },
         body: JSON.stringify(data),
     })
+    .then(() => {
+        loadRecords();
+        hideForm();
+    })
+    .catch(error => {
+        console.error('Error submitting form:', error);
+    });
+}
+
+
+function showDeleteModal(record) {
+    const modal = document.getElementById('deleteModal');
+    const deleteDetails = document.getElementById('deleteDetails');
+    deleteDetails.innerHTML = '';
+
+    // Display record details
+    for (const key in record) {
+        if (record.hasOwnProperty(key)) {
+            const div = document.createElement('div');
+            div.textContent = `${capitalizeFirstLetter(key)}: ${record[key]}`;
+            deleteDetails.appendChild(div);
+        }
+    }
+
+    // Handle delete button click
+    document.getElementById('confirmDeleteButton').onclick = function() {
+        deleteRecord(record.id);
+    };
+
+    modal.style.display = 'block';
+}
+
+
+function hideDeleteModal() {
+    document.getElementById('deleteModal').style.display = 'none';
+}
+
+
+function deleteRecord(id) {
+    fetch(`/api/records?id=${id}`, { method: 'DELETE' })
         .then(() => {
             loadRecords();
-            hideForm();
+            hideDeleteModal();
         })
         .catch(error => {
-            console.error('Error submitting form:', error);
+            console.error('Error deleting record:', error);
         });
 }
 
-function deleteRecord(id) {
-    if (confirm('Are you sure you want to delete this record?')) {
-        fetch('/api/records?id=' + id, { method: 'DELETE' })
-            .then(() => loadRecords())
-            .catch(error => {
-                console.error('Error deleting record:', error);
-            });
-    }
+
+function deleteRecordPrompt(id) {
+    fetch('/api/records?id=' + id)
+        .then(response => response.json())
+        .then(data => {
+            const record = data.records[0];
+            showDeleteModal(record);
+        })
+        .catch(error => {
+            console.error('Error fetching record for deletion:', error);
+        });
 }
 
-// When the user clicks on <span> (x), close the modal
+// Ensure cancel button closes the modal
+document.getElementById('dataForm').querySelector('button[type="button"]').addEventListener('click', hideForm);
+
+
 document.getElementsByClassName('close-button')[0].onclick = function() {
     hideForm();
 }
 
-// When the user clicks anywhere outside of the modal, close it
+
 window.onclick = function(event) {
     if (event.target == document.getElementById('modal')) {
         hideForm();
     }
 }
 
+function capitalizeFirstLetter(string) {
+    return string.charAt(0).toUpperCase() + string.slice(1);
+}
 
-document.addEventListener('DOMContentLoaded', () => loadRecords());
+window.addEventListener('pageshow', () => loadRecords());

@@ -13,9 +13,17 @@ import (
 func SetupRoutes(db *sql.DB) {
 
 	handler, err := crud.NewCRUDHandler(db)
+
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// Serve API requests
+	http.Handle("/api/records", handler)
+
+	// Serve static files
+	fs := http.FileServer(http.Dir("static"))
+	http.Handle("/static/", http.StripPrefix("/static/", fs))
 
 	// Route for the menu
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -31,6 +39,7 @@ func SetupRoutes(db *sql.DB) {
 		}
 
 		// Load the handler setup dynamically
+		handler.Reset()
 		setupFunc := loaders.LoadHandlerSetupFunc(tableName)
 		if setupFunc == nil {
 			http.Error(w, "Unknown table", http.StatusBadRequest)
@@ -43,14 +52,6 @@ func SetupRoutes(db *sql.DB) {
 			return
 		}
 
-		handler.Initialize()
-
-		/* 		log.Println("in server.go - After Initialize(): handler = ", handler)
-		   		fmt.Println("====================================================")
-		   		log.Println("handler.TableName = ", handler.TableName)
-		   		log.Println("handler.Table.Columns = ", handler.Table.Columns)
-		   		log.Println("Query = ", handler.GetQuery())
-		   		fmt.Println("====================================================") */
 		// Serve the HTML template with the handler data
 		tmpl, err := template.ParseFiles("crud/templates/index.html")
 		if err != nil {
@@ -71,11 +72,4 @@ func SetupRoutes(db *sql.DB) {
 		}
 	})
 
-	// Serve API requests
-
-	http.Handle("/api/records", handler)
-
-	// Serve static files
-	fs := http.FileServer(http.Dir("static"))
-	http.Handle("/static/", http.StripPrefix("/static/", fs))
 }

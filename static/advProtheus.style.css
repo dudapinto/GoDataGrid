@@ -1,0 +1,219 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f0f0f0;
+    margin: 0;
+    padding: 0;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+    background-color: #ffffff;
+    border: 1px solid #dddddd;
+}
+
+th, td {
+    border: 1px solid #dddddd;
+    padding: 10px;
+    text-align: left;
+}
+
+th {
+    background-color: #f0f0f0;
+    font-weight: bold;
+    border-bottom: 2px solid #dddddd;
+}
+
+td {
+    font-size: 14px;
+}
+
+.pagination {
+    margin-top: 10px;
+    text-align: center;
+}
+
+.pagination button {
+    padding: 8px 16px;
+    background-color: #0077cc;
+    border: none;
+    color: #ffffff;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.3s;
+}
+
+.pagination button:hover {
+    background-color: #005ea6;
+}
+
+.header {
+    background-color: #0077cc;
+    color: #ffffff;
+    padding: 10px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.header h1 {
+    margin: 0;
+    font-size: 24px;
+}
+
+#searchContainer {
+    position: relative;
+    margin-left: auto;
+}
+
+#searchBox {
+    padding: 8px;
+    border: 1px solid #cccccc;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+#clearSearchInputButton {
+    padding: 8px;
+    border: none;
+    background-color: #dd4b39;
+    color: #ffffff;
+    cursor: pointer;
+    border-radius: 4px;
+    margin-left: 5px;
+}
+
+#clearSearchInputButton:hover {
+    background-color: #c53727;
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.4);
+}
+
+.modal-content {
+    background-color: #fefefe;
+    margin: 15% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 50%;
+    border-radius: 5px;
+    box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
+}
+
+.close-button {
+    color: #888;
+    float: right;
+    font-size: 24px;
+    cursor: pointer;
+}
+
+.close-button:hover {
+    color: #555;
+}
+
+.close-button:focus {
+    outline: none;
+}
+
+#dataForm {
+    display: flex;
+    flex-direction: column;
+}
+
+#dataForm label {
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+#dataForm input[type="text"] {
+    padding: 10px;
+    margin-top: 5px;
+    border: 1px solid #cccccc;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+#dataForm button {
+    cursor: pointer;
+    padding: 8px 16px; /* Adjusted padding */
+    background-color: #28a745;
+    border: none;
+    color: #ffffff;
+    text-align: center;
+    text-decoration: none;
+    font-size: 16px;
+    margin-top: 10px;
+    border-radius: 4px;
+    transition: background-color 0.3s;
+    width: auto; /* Allow buttons to adjust width based on content */
+    margin-right: 10px; /* Add space between buttons */
+}
+
+#dataTable button i {
+    margin-right: 5px; /* Adjust spacing between icon and text if needed */
+}
+
+#dataForm button[type="button"] {
+    background-color: #dc3545;
+    padding: 8px 16px; /* Adjusted padding */
+    margin-right: 0; /* No need for extra margin on the right */
+}
+
+#dataForm button:hover {
+    background-color: #218838;
+}
+
+#formButtons {
+    display: flex;
+    justify-content: space-between;
+}
+
+#dataForm input[name="id"] {
+    pointer-events: none;
+    background-color: #f0f0f0;
+}
+
+#dataTable i {
+    position: relative;
+    cursor: pointer;
+    padding-right: 5px;
+}
+
+#dataTable i span {
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+/* CSS to reveal the tooltip text on hover */
+#dataTable i:hover span {
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 1;
+    background-color: #ffffff; /* Optional: Add background color for better readability */
+    padding: 2px 5px; /* Optional: Adjust padding for better spacing */
+    border: 1px solid #cccccc; /* Optional: Add border for better separation */
+}
+
+#dataTable th {
+    position: relative;
+    cursor: pointer;
+}
+
+#dataTable th i {
+    margin-left: 5px; /* Adjust as needed */
+}

@@ -6,14 +6,19 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 type Column struct {
 	Name    string `json:"name"`
 	Type    string `json:"type"`
 	Comment string `json:"comment"`
+	RawName string `json:"rawname"`
 }
 
 type Table struct {
@@ -22,82 +27,121 @@ type Table struct {
 }
 
 type CRUDHandler struct {
-	DB           *sql.DB
-	TableName    string
-	ColumnLabels map[string]string
-	Validations  map[string]string
-	Table        Table
-	linesPerPage int
-	query        string
+	DB             *sql.DB
+	TableName      string
+	ColumnLabels   map[string]string
+	Validations    map[string]string
+	HiddenColumns  []string
+	Table          Table
+	linesPerPage   int
+	query          string
+	RawColumnNames []string
 }
 
 func NewCRUDHandler(db *sql.DB) (*CRUDHandler, error) {
-	handler := &CRUDHandler{DB: db}
+	handler := &CRUDHandler{
+		DB:             db,
+		ColumnLabels:   make(map[string]string),
+		Validations:    make(map[string]string),
+		HiddenColumns:  []string{},
+		linesPerPage:   15,
+		query:          "",
+		RawColumnNames: []string{},
+	}
+
 	return handler, nil
 }
 
-func (h *CRUDHandler) SetTableName(tableName string) { h.TableName = tableName }
+func (h *CRUDHandler) Reset() {
+	h.TableName = ""
+	h.ColumnLabels = make(map[string]string)
+	h.Validations = make(map[string]string)
+	h.HiddenColumns = []string{}
+	h.linesPerPage = 15
+	h.query = ""
+	h.RawColumnNames = []string{}
+}
 
+// Setters to configure our CRUD (each file in the /setup folder will use them)
+func (h *CRUDHandler) SetTableName(tableName string)                  { h.TableName = tableName }
 func (h *CRUDHandler) SetColumnLabels(columnLabels map[string]string) { h.ColumnLabels = columnLabels }
+func (h *CRUDHandler) SetValidations(validations map[string]string)   { h.Validations = validations }
+func (h *CRUDHandler) SetLinesPerPage(linesPerPage int)               { h.linesPerPage = linesPerPage }
+func (h *CRUDHandler) SetQuery(query string)                          { h.query = query }
+func (h *CRUDHandler) SetHiddenColumns(hiddenColumns []string)        { h.HiddenColumns = hiddenColumns }
 
-func (h *CRUDHandler) SetValidations(validations map[string]string) { h.Validations = validations }
-
-func (h *CRUDHandler) SetLinesPerPage(linesPerPage int) { h.linesPerPage = linesPerPage }
-
-func (h *CRUDHandler) SetQuery(query string) { h.query = query }
-
+// we need this function to wait all Setters before starting
 func (h *CRUDHandler) Initialize() {
 	if h.query != "" {
-		log.Println("in CRUD.GO executing Initialise() \n Query provided, updating table structure from query...\n", h.query)
-		fmt.Println("======================================================")
+		log.Println("Query provided, getting table structure from query...")
 		h.updateTableStructureFromQuery()
-	} else if h.TableName != "" {
-		log.Println("in CRUD.GO executing Initialise() \n No query provided, updating table structure from database...")
-		fmt.Println("============================================================")
+	} else if h.query == "" {
+		log.Println("No query provided, getting table structure from database...")
 		h.updateTableStructureFromDB()
 	} else {
-		log.Println("in CRUD.GO executing Initialise() \n Neither query nor table name provided, cannot update table structure.")
-		fmt.Println("=====================================================================")
+		log.Println("Neither query nor table name provided, couldn´t get table structure.")
 	}
 }
 
 func (h *CRUDHandler) updateTableStructureFromQuery() {
+	h.RawColumnNames = nil
+	// Normalize query by removing extra spaces and line breaks
+	normalizedQuery := strings.Join(strings.Fields(h.query), " ")
 
-	fromIndex := strings.Index(strings.ToUpper(h.query), " FROM ")
+	fromIndex := strings.Index(strings.ToUpper(normalizedQuery), " FROM ")
 	if fromIndex == -1 {
 		log.Fatal("Failed to find FROM keyword in the query")
 	}
 
-	columnSubstring := h.query[len("SELECT"):fromIndex]
+	columnSubstring := normalizedQuery[len("SELECT"):fromIndex]
+	columnSubstring = strings.TrimSpace(columnSubstring)
 
-	columnNames := strings.Split(columnSubstring, ",")
-	for i, col := range columnNames {
-		columnNames[i] = strings.TrimSpace(col)
+	// Remove aliases and extract clean column names
+	re := regexp.MustCompile(`(?i)([a-zA-Z0-9_\.]+)(?:\s+AS\s+([a-zA-Z0-9_]+))?`)
+	matches := re.FindAllStringSubmatch(columnSubstring, -1)
+
+	var columnNames []string
+	var rawColumnNames []string
+	for _, match := range matches {
+		if len(match) > 1 {
+			// Use the alias if it exists, otherwise use the column name
+			if len(match) > 2 && match[2] != "" {
+				columnNames = append(columnNames, match[2])
+			} else {
+				// Strip table prefix
+				col := match[1]
+				if dotIndex := strings.Index(col, "."); dotIndex != -1 {
+					col = col[dotIndex+1:]
+				}
+				columnNames = append(columnNames, col)
+			}
+		}
+		rawColumnNames = append(rawColumnNames, match[1])
 	}
-
-	log.Println("Extracted column names:", columnNames)
 
 	columns := make([]Column, len(columnNames))
-	for i, col := range columnNames {
-		columns[i] = Column{
-			Name:    col,
-			Comment: h.ColumnLabels[col],
+	for i, name := range columnNames {
+		comment := name
+		if label, ok := h.ColumnLabels[name]; ok {
+			comment = label
 		}
+		columns[i] = Column{Name: name, Comment: comment}
 	}
 
-	h.Table = Table{
-		Name:    h.TableName,
-		Columns: columns,
-	}
+	h.Table = Table{Name: h.TableName, Columns: columns}
+	h.RawColumnNames = rawColumnNames
 
-	log.Println("With labels: ", h.Table)
+	//log.Println("matches: ", matches)
+	//log.Println("h.Table: ", h.Table)
+	log.Println("columnNames: ", columnNames)
+	log.Println("rawColumnNames: ", rawColumnNames)
 	fmt.Println("====================================================")
 }
 
 func (h *CRUDHandler) updateTableStructureFromDB() {
 	query := fmt.Sprintf("SHOW FULL COLUMNS FROM %s", h.TableName)
 	rows, err := h.DB.Query(query)
-
+	h.RawColumnNames = nil
 	if err != nil {
 		log.Printf("Error querying table structure: %s", err)
 		return
@@ -107,7 +151,7 @@ func (h *CRUDHandler) updateTableStructureFromDB() {
 	var columns []Column
 	for rows.Next() {
 		var field, colType, collation, null, key, extra, privileges, comment sql.NullString
-		if err := rows.Scan(&field, &colType, &collation, &null, &key, &extra, &privileges, &comment); err != nil {
+		if err := rows.Scan(&field, &colType, &collation, &null, &key, &sql.RawBytes{}, &extra, &privileges, &comment); err != nil {
 			log.Printf("Error scanning row: %v", err)
 			continue
 		}
@@ -115,7 +159,7 @@ func (h *CRUDHandler) updateTableStructureFromDB() {
 		columns = append(columns, Column{
 			Name:    field.String,
 			Type:    colType.String,
-			Comment: comment.String,
+			Comment: toTitleCase(field.String), // Use the actual tranformed column name as the Comment
 		})
 	}
 
@@ -128,10 +172,17 @@ func (h *CRUDHandler) updateTableStructureFromDB() {
 		Columns: columns,
 	}
 
-	log.Println("STEP 1 - No query provided")
+	log.Println("in CRUD.GO executing updateTableStructureFromDB() - \n Extracted column names from DB:", columns)
 	fmt.Println("====================================================")
-	log.Println("in CRUD.GO executing updateTableStructureFromDB() - Extracted column names from DB:", columns)
-	fmt.Println("====================================================")
+}
+
+/* HELPER to transform the snake case to Title Case */
+func toTitleCase(str string) string {
+	words := strings.Split(str, "_")
+	for i := 0; i < len(words); i++ {
+		words[i] = cases.Title(language.English).String(words[i])
+	}
+	return strings.Join(words, " ")
 }
 
 func (h *CRUDHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -143,26 +194,9 @@ func (h *CRUDHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *CRUDHandler) AddRecord(w http.ResponseWriter, r *http.Request) {
-	h.addRecordHandler(w, r)
-}
-
-func (h *CRUDHandler) GetQuery() string {
-	return h.query
-}
-
-func (h *CRUDHandler) recordsHandler(w http.ResponseWriter, r *http.Request) {
-	// Get all query parameters
+// handle the extraction of parameters from the request
+func (h *CRUDHandler) extractParams(r *http.Request) (int, string, string, string, string) {
 	params := r.URL.Query()
-
-	// Iterate over the query parameters and print them
-	for key, values := range params {
-		// Print the key and all its values
-		fmt.Printf("Key: %s ", key)
-		for _, value := range values {
-			fmt.Printf("Value: %s\n", value)
-		}
-	}
 
 	pageStr := params.Get("page")
 	page, err := strconv.Atoi(pageStr)
@@ -171,18 +205,24 @@ func (h *CRUDHandler) recordsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	search := params.Get("search")
-	where := ""
-	if search != "" {
-		where = " WHERE " + h.buildSearchQuery(search)
-	}
-
 	id := params.Get("id")
-	if id != "" {
-		where = " WHERE id = " + id
-	}
-
 	sortColumn := params.Get("sort")
 	sortOrder := params.Get("order")
+
+	return page, search, id, sortColumn, sortOrder
+}
+
+// build the SQL query
+func (h *CRUDHandler) buildQuery(page int, search string, id string, sortColumn string, sortOrder string) string {
+	h.Initialize()
+	where := ""
+	if search != "" {
+		where = " WHERE " + h.buildSearchQuery(search, h.RawColumnNames)
+	}
+	if id != "" {
+		where = " WHERE " + h.TableName + ".id = " + id
+	}
+
 	orderBy := ""
 	if sortColumn != "" && (sortOrder == "asc" || sortOrder == "desc") {
 		orderBy = fmt.Sprintf(" ORDER BY %s %s", sortColumn, sortOrder)
@@ -192,27 +232,28 @@ func (h *CRUDHandler) recordsHandler(w http.ResponseWriter, r *http.Request) {
 	offset := page * limit
 
 	query := h.query
-
 	if query == "" {
 		query = fmt.Sprintf("SELECT * FROM %s %s %s LIMIT %d OFFSET %d", h.TableName, where, orderBy, limit, offset)
 	} else {
 		query = fmt.Sprintf("%s %s %s LIMIT %d OFFSET %d", query, where, orderBy, limit, offset)
 	}
 
-	//fmt.Println("sortColumn:", sortColumn)
-	//fmt.Println("sortOrder:", sortOrder)
+	fmt.Println("Query :", query)
+	fmt.Println("====================================================")
+	return query
+}
 
+// fetch the records from the database
+func (h *CRUDHandler) fetchRecords(query string) ([]map[string]interface{}, []string, error) {
 	rows, err := h.DB.Query(query)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, nil, err
 	}
 	defer rows.Close()
 
 	columns, err := rows.Columns()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, nil, err
 	}
 
 	var records []map[string]interface{}
@@ -223,8 +264,7 @@ func (h *CRUDHandler) recordsHandler(w http.ResponseWriter, r *http.Request) {
 			values[i] = new(sql.NullString)
 		}
 		if err := rows.Scan(values...); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			return nil, nil, err
 		}
 		for i, column := range columns {
 			if value, ok := values[i].(*sql.NullString); ok && value.Valid {
@@ -236,6 +276,11 @@ func (h *CRUDHandler) recordsHandler(w http.ResponseWriter, r *http.Request) {
 		records = append(records, record)
 	}
 
+	return records, columns, nil
+}
+
+// calculate the total pages
+func (h *CRUDHandler) calculateTotalPages(id string, limit int) int {
 	totalPages := 0
 	if id == "" {
 		totalQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s", h.TableName)
@@ -243,9 +288,23 @@ func (h *CRUDHandler) recordsHandler(w http.ResponseWriter, r *http.Request) {
 		h.DB.QueryRow(totalQuery).Scan(&totalRecords)
 		totalPages = (totalRecords + limit - 1) / limit
 	}
+	return totalPages
+}
+
+// main handler function
+func (h *CRUDHandler) recordsHandler(w http.ResponseWriter, r *http.Request) {
+	page, search, id, sortColumn, sortOrder := h.extractParams(r)
+	query := h.buildQuery(page, search, id, sortColumn, sortOrder)
+	records, columns, err := h.fetchRecords(query)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	totalPages := h.calculateTotalPages(id, h.linesPerPage)
 
 	response := map[string]interface{}{
-		"records":     records,
+		"records":     filterHiddenColumns(records, h.HiddenColumns),
+		"columns":     filterHiddenColumnsInColumns(columns, h.HiddenColumns),
 		"currentPage": page,
 		"totalPages":  totalPages,
 	}
@@ -254,38 +313,137 @@ func (h *CRUDHandler) recordsHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+// builds and returns a string with the search string being searched in all columns of the Table
+func (h *CRUDHandler) buildSearchQuery(search string, rawColumnNames []string) string {
+	conditions := []string{}
+	ret := ""
+	for _, columnName := range rawColumnNames {
+		if columnName == "id" { // to avoid ambiguity in the select
+			columnName = h.TableName + "." + "id"
+		}
+		condition := fmt.Sprintf("%s LIKE '%%%s%%'", columnName, search)
+		conditions = append(conditions, condition)
+	}
+	ret = strings.Join(conditions, " OR ")
+
+	fmt.Println("Search condition = ", ret)
+
+	return ret
+}
+
+func filterHiddenColumns(records []map[string]interface{}, hiddenColumns []string) []map[string]interface{} {
+	filteredRecords := []map[string]interface{}{}
+	for _, record := range records {
+		filteredRecord := map[string]interface{}{}
+		for key, value := range record {
+			if !contains(hiddenColumns, key) {
+				filteredRecord[key] = value
+			}
+			filteredRecord["id"] = record["id"] // Ensure ID is always included
+		}
+		filteredRecords = append(filteredRecords, filteredRecord)
+	}
+	return filteredRecords
+}
+
+func filterHiddenColumnsInColumns(columns []string, hiddenColumns []string) []string {
+	filteredColumns := []string{}
+	for _, column := range columns {
+		if !contains(hiddenColumns, column) {
+			filteredColumns = append(filteredColumns, column)
+		}
+	}
+	return filteredColumns
+}
+
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
 func (h *CRUDHandler) addRecordHandler(w http.ResponseWriter, r *http.Request) {
 	var record map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&record); err != nil {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+	err := json.NewDecoder(r.Body).Decode(&record)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	columns := make([]string, 0, len(record))
-	values := make([]interface{}, 0, len(record))
-	placeholders := make([]string, 0, len(record))
-
-	for col, val := range record {
-		columns = append(columns, col)
-		values = append(values, val)
-		placeholders = append(placeholders, "?")
-	}
-
-	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", h.TableName, strings.Join(columns, ","), strings.Join(placeholders, ","))
-	_, err := h.DB.Exec(query, values...)
+	// Convert record to SQL insert statement and execute
+	columns, values := getSQLInsertColumnsAndValues(record)
+	query := fmt.Sprintf("INSERT INTO user_details (%s) VALUES (%s)", columns, values)
+	_, err = h.DB.Exec(query)
 	if err != nil {
-		http.Error(w, "Failed to add record: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(record)
 }
 
-func (h *CRUDHandler) buildSearchQuery(search string) string {
-	var conditions []string
-	for _, column := range h.Table.Columns {
-		condition := fmt.Sprintf("%s LIKE '%%%s%%'", column.Name, search)
-		conditions = append(conditions, condition)
+func (h *CRUDHandler) updateRecordHandler(w http.ResponseWriter, r *http.Request) {
+	// Parse the form data
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
-	return strings.Join(conditions, " OR ")
+
+	// Get the ID from the form data
+	id := r.FormValue("id")
+
+	// Convert form data to a map
+	record := make(map[string]interface{})
+	for key, values := range r.Form {
+		// If the form field has multiple values (e.g., multiple select),
+		// we store all of them, otherwise just store the single value
+		if len(values) > 1 {
+			record[key] = values
+		} else {
+			record[key] = values[0]
+		}
+	}
+
+	// Convert record to SQL update statement and execute
+	setClause := getSQLUpdateSetClause(record)
+	query := fmt.Sprintf("UPDATE %s SET %s WHERE id = %s", h.TableName, setClause, id)
+	_, err := h.DB.Exec(query)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(record)
+}
+
+func getSQLInsertColumnsAndValues(record map[string]interface{}) (string, string) {
+	var columns, values []string
+	for col, val := range record {
+		columns = append(columns, col)
+		values = append(values, fmt.Sprintf("'%v'", val))
+	}
+	return strings.Join(columns, ", "), strings.Join(values, ", ")
+}
+
+func getSQLUpdateSetClause(record map[string]interface{}) string {
+	var setClause []string
+	for col, val := range record {
+		setClause = append(setClause, fmt.Sprintf("%s = '%v'", col, val))
+	}
+	return strings.Join(setClause, ", ")
+}
+
+/* HELPER Function for Debug purposes */
+func showParams(p map[string][]string) {
+	for key, values := range p {
+		fmt.Printf("Key: %s ", key)
+		for _, value := range values {
+			fmt.Printf("Value: %s\n", value)
+		}
+	}
 }

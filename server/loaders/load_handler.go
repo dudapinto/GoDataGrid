@@ -13,6 +13,7 @@ func LoadHandlerSetupFunc(tableName string) func(*crud.CRUDHandler) error {
 
 	log.Println("(in LoadHandlerSetupFunc) tableName = ", tableName)
 	fmt.Println("====================================================")
+
 	switch strings.ToLower(tableName) {
 	case "user_details":
 		return setup.UserDetailsSetup
@@ -20,6 +21,8 @@ func LoadHandlerSetupFunc(tableName string) func(*crud.CRUDHandler) error {
 		return setup.OrdersSetup
 	case "products":
 		return setup.ProductsSetup
+	case "departments":
+		return setup.DepartmentsSetup
 	default:
 		return nil
 	}

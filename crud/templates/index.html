@@ -1,55 +1,69 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <title>DataGrid</title>
-        <link rel="stylesheet" type="text/css" href="/static/style.css">
-    </head>
-    <body>
-        <div class="header">
-            <h1>DataGrid for {{.TableName}}</h1>
-            <div id="searchContainer">
-                <input type="text" id="searchBox" placeholder="Search...">
-                <button id="clearSearchInputButton">X</button>
-            </div>
-            <button onclick="showAddForm()">Add Record</button>
+<head>
+    <title>DataGrid</title>
+    <link rel="stylesheet" type="text/css" href="/static/advProtheus.style.css">
+</head>
+<body>
+    <div class="header">
+        <h1 id="tableTitle">DataGrid for {{.TableName}}</h1>
+        <div id="searchContainer">
+            <input type="text" id="searchBox" placeholder="Search...">
+            <button id="clearSearchInputButton">X</button>
         </div>
-        
-        <table>
+        <button onclick="showAddForm()">Add Record</button>
+    </div>
+    
+    <div id="tableContainer">
+        <table id="dataTable">
             <thead>
                 <tr>
                     {{range .Columns}}
-                        <th data-name="{{.Name}}" data-order="asc" onclick="sortRecords('{{.Name}}')">{{.Comment}}</th>
+                        {{if ne .Name "id"}}
+                            <th data-name="{{.Name}}" data-order="asc" onclick="sortRecords('{{.Name}}')">{{.Comment}}</th>
+                        {{end}}
                     {{end}}
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody id="dataGrid"></tbody>
         </table>
-        <div class="pagination">
-            <button onclick="prevPage()">Previous</button>
-            <span id="currentPage">1</span>
-            <span id="totalPages">/ 1</span>
-            <button onclick="nextPage()">Next</button>
-        </div>
-    
-        
-        <div id="modal" class="modal">
-            <div class="modal-content">
-                <span class="close-button">×</span>
-                <form id="dataForm" onsubmit="submitForm(event)">
-                    {{range .Columns}}
-                        <label>{{.Comment}}</label>
-                        <input type="text" name="{{.Name}}" id="{{.Name}}" value="">
-                        <br>
-                    {{end}}
-                    <div id="formButtons">
-                        <button type="submit">Save</button>
-                        <button type="button" onclick="hideForm()">Cancel</button>
-                    </div>
-                </form>
-            </div>
-        </div>        
+    </div>    
+    <div class="pagination">
+        <button onclick="prevPage()">Previous</button>
+        <span id="currentPage">1</span>
+        <span id="totalPages">/ 1</span>
+        <button onclick="nextPage()">Next</button>
+    </div>
 
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="hideForm()">×</span>
+            <form id="dataForm" onsubmit="submitForm(event)">
+                {{range .Columns}}
+                    <label>{{.Comment}}</label>
+                    <input type="text" name="{{.Name}}" id="{{.Name}}" value="">
+                    <br>
+                {{end}}
+                <div id="formButtons">
+                    <button type="submit">Save</button>
+                    <button type="button" onclick="hideForm()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div id="deleteModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="hideDeleteModal()">&times;</span>
+            <h2>Delete Record</h2>
+            <p>Are you sure you want to delete this record?</p>
+            <div id="deleteDetails"></div>
+            <button id="confirmDeleteButton">Delete</button>
+            <button onclick="hideDeleteModal()">Cancel</button>
+        </div>
+    </div>
+    <script src="https://kit.fontawesome.com/d43b46996f.js" crossorigin="anonymous" referrerpolicy="no-referrer" /></script>
     <script src="/static/script.js"></script>    
 </body>
 </html>

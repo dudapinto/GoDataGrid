@@ -18,6 +18,11 @@ th {
     cursor: pointer; 
 }
 
+#dataTable {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
 .pagination { 
     margin-top: 10px; 
 }
